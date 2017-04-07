@@ -67,7 +67,7 @@ class StudentSocketImpl extends BaseSocketImpl {
    * @return number of bytes copied (by definition > 0)
    */
   synchronized int getData(byte[] buffer, int length){
-	  return 1;
+	  return 2;
   }
 
   /**
