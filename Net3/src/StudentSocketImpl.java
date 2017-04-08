@@ -113,7 +113,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 				e.printStackTrace();
 			}
 		}
-		
+		System.out.println(buffer.toString());
 		sendBuffer.append(buffer,0, length);
 		sendData(length);
 	}
