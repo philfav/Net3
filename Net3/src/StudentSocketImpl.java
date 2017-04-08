@@ -121,7 +121,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	synchronized void sendData(int length){
 		byte[] buf = new byte[10000];
 		sendBuffer.read(buf, length);
-		System.out.println(buf);
+		System.out.println(buf.toString());
 	}
 	/**
 	 * Connects this socket to the specified port number on the specified host.
