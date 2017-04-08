@@ -39,8 +39,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 	private boolean terminating = false;
 
-	private InfiniteBuffer sendBuffer;
-	private InfiniteBuffer recvBuffer;
+	private BetterBuffer sendBuffer;
+	private BetterBuffer recvBuffer;
 
 	// Used to print state transitions. The string representation of the state
 	// is at the index corresponding to it's partner's ordinal in the State enum
@@ -75,6 +75,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 * initialize buffers and set up sequence numbers
 	 */
 	private void initBuffers() {
+		sendBuffer = new BetterBuffer();
+		recvBuffer = new BetterBuffer();
+		
 	}
 
 	/**
@@ -102,8 +105,24 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 *            number of bytes to copy
 	 */
 	synchronized void dataFromApp(byte[] buffer, int length) {
+		while (sendBuffer.getSpace() <= 0){
+			try {
+				wait();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		sendBuffer.append(buffer,0, length);
+		sendData(length);
 	}
 
+	synchronized void sendData(int length){
+		byte[] buf = new byte[10000];
+		sendBuffer.read(buf, length);
+		System.out.println(buf);
+	}
 	/**
 	 * Connects this socket to the specified port number on the specified host.
 	 *
