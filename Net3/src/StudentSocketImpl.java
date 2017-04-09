@@ -41,6 +41,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 	private BetterBuffer sendBuffer;
 	private BetterBuffer recvBuffer;
+	
+	private Hashtable dataTimers;
 
 	// Used to print state transitions. The string representation of the state
 	// is at the index corresponding to it's partner's ordinal in the State enum
@@ -50,7 +52,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 	StudentSocketImpl(Demultiplexer D) { // default constructor
 		this.D = D;
 		state = State.CLOSED; // Init to closed
-
+		dataTimers = new Hashtable<TCPPacket,Timer>();
+		
 		try {
 			pipeAppToSocket = new PipedInputStream();
 			pipeSocketToApp = new PipedOutputStream();
@@ -115,14 +118,13 @@ class StudentSocketImpl extends BaseSocketImpl {
 		}
 		System.out.println(new String(buffer));
 		sendBuffer.append(buffer,0, length);
-		sendData(length);
+		sendData();
 	}
 
-	synchronized void sendData(int length){
-		byte[] buf = new byte[10000];
-		sendBuffer.read(buf, length);
-		System.out.println(new String(buf));
+	synchronized void sendData(){
+		
 	}
+	
 	/**
 	 * Connects this socket to the specified port number on the specified host.
 	 *
@@ -136,12 +138,12 @@ class StudentSocketImpl extends BaseSocketImpl {
 	@Override
 	public synchronized void connect(InetAddress address, int port) throws IOException {
 		localport = D.getNextAvailablePort();
-		seq = 5; // Arbitrary starting seq number
+		seq = 25; // Arbitrary starting seq number
 
 		connectedAddr = address;
 
 		D.registerConnection(address, this.localport, port, this);
-		TCPPacket syn = new TCPPacket(this.localport, port, seq, 8, false, true, false, 5, null);
+		TCPPacket syn = new TCPPacket(this.localport, port, seq, 28, false, true, false, 5, null);
 
 		sendPacket(syn, connectedAddr); // Send syn packet to initiate three-way
 										// handshake
@@ -183,7 +185,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			connectedSeq = p.seqNum;
 			connectedAddr = p.sourceAddr;
 
-			response = new TCPPacket(localport, p.sourcePort, seq, connectedSeq + 1, true, true, false, 5, null); // SYN+ACK
+			response = new TCPPacket(localport, p.sourcePort, seq, connectedSeq + 20, true, true, false, 5, null); // SYN+ACK
 																													// in
 																													// response
 																													// to
@@ -210,7 +212,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			else if (p.finFlag) {
 				seq = p.ackNum; // Update seq on FIN and SYN
-				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 1, true, false, false, 5, null); // ACK
+				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // ACK
 																														// for
 																														// fin
 				sendPacket(response, connectedAddr);
@@ -238,7 +240,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 				seq = p.ackNum;
 				connectedSeq = p.seqNum;
 
-				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 1, true, false, false, 5, null); // Ack
+				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
 																														// for
 																														// fin
 
@@ -257,7 +259,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			seq = p.ackNum;
 
-			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 1, true, false, false, 5, null); // Ack
+			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
 																													// for
 																													// fin
 
@@ -289,7 +291,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// (The SYN+ACK is saved as a lastPack rather than lastAck; no
 			// difference, arbitrarily chosen)
 			if (!p.ackFlag && p.synFlag)
-				this.sendPacket(lastPack, connectedAddr);
+				this.sendPacket(lastAck, connectedAddr);
 
 			else if (p.ackFlag) {
 				tcpTimer.cancel(); // Cancel timer for sent SYN+ACK
@@ -314,7 +316,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			seq = p.ackNum;
 			connectedSeq = p.seqNum;
 
-			response = new TCPPacket(localport, p.sourcePort, -2, p.seqNum + 1, true, false, false, 5, null); // Ack
+			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
 																												// for
 																												// received
 																												// SYN+ACK
@@ -511,7 +513,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// transmitted for a given packet.
 		// Resend the packet.
 		else {
-			sendPacket(lastPack, connectedAddr);
+			sendPacket((TCPPacket) ref, connectedAddr);
 		}
 
 	}
@@ -541,12 +543,16 @@ class StudentSocketImpl extends BaseSocketImpl {
 	private void sendPacket(TCPPacket pack, InetAddress addr) {
 		TCPWrapper.send(pack, addr); // Actually send the packet
 
+		if (pack.getData() != null){
+			
+		}
+		
 		// For FINs, ACKs, and SYN+ACKs, send the packet and start a
 		// retransmission timer.
 		// Also, save it as the lastPack sent.
-		if (!pack.ackFlag || pack.synFlag) {
-			lastPack = pack;
-			createTimerTask(1000, null);
+		else if (!pack.ackFlag) {
+			//lastPack = pack;
+			createTimerTask(1000, pack);
 		}
 
 		// For ACKs, no retransmission. Save the packet as the lastAck sent.
