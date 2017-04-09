@@ -550,7 +550,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// For FINs, ACKs, and SYN+ACKs, send the packet and start a
 		// retransmission timer.
 		// Also, save it as the lastPack sent.
-		else if (!pack.ackFlag) {
+		else if (!pack.ackFlag || pack.synFlag) {
 			lastPack = pack;
 			createTimerTask(1000, pack);
 		}
