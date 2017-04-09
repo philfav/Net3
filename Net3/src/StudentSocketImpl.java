@@ -291,11 +291,11 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// (The SYN+ACK is saved as a lastPack rather than lastAck; no
 			// difference, arbitrarily chosen)
 			if (!p.ackFlag && p.synFlag)
-				this.sendPacket(lastAck, connectedAddr);
+				this.sendPacket(lastPack, connectedAddr);
 
 			else if (p.ackFlag) {
-				//tcpTimer.cancel(); // Cancel timer for sent SYN+ACK
-				//tcpTimer = null;
+				tcpTimer.cancel(); // Cancel timer for sent SYN+ACK
+				tcpTimer = null;
 
 				connectedPort = p.sourcePort;
 
