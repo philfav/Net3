@@ -294,8 +294,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 				this.sendPacket(lastAck, connectedAddr);
 
 			else if (p.ackFlag) {
-				tcpTimer.cancel(); // Cancel timer for sent SYN+ACK
-				tcpTimer = null;
+				//tcpTimer.cancel(); // Cancel timer for sent SYN+ACK
+				//tcpTimer = null;
 
 				connectedPort = p.sourcePort;
 
@@ -551,7 +551,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// retransmission timer.
 		// Also, save it as the lastPack sent.
 		else if (!pack.ackFlag) {
-			//lastPack = pack;
+			lastPack = pack;
 			createTimerTask(1000, pack);
 		}
 
