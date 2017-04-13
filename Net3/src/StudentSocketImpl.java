@@ -282,7 +282,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 							System.out.print(seqNum);
 							System.out.print("\n");
 							dataTimers.get(seqNum).cancel();
-							dataTimers.remove(seqNum);
 							numAcked++;
 						}
 					}
@@ -556,7 +555,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 *            generic reference to be returned to handleTimer
 	 */
 	private TCPTimerTask createTimerTask(Timer timer, long delay, Object ref) {
-		if (tcpTimer == null || timer == null){
+		if (timer == null){
 			tcpTimer = new Timer(false);
 			timer = tcpTimer;
 		}
