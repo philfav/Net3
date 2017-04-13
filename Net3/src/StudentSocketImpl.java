@@ -579,7 +579,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			tcpTimer = null;
 		}
 		
-		if (dataTimers.contains(packet.data.length + packet.seqNum))
+		if (packet.getData() != null)
 			dataTimers.get(packet.data.length + packet.seqNum).cancel();
 		
 		// this must run only once the last timer (30 second timer) has expired
