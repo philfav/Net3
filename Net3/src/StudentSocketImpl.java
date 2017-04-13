@@ -273,7 +273,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			
 			else if (p.ackFlag){
 				int numAcked = 0;
-				
+				Vector<Integer> toRemove = new Vector<Integer>();
 				if (dataTimers.containsKey(p.ackNum)){
 					
 					for (int seqNum : dataTimers.keySet()){
@@ -282,15 +282,14 @@ class StudentSocketImpl extends BaseSocketImpl {
 							System.out.print(seqNum);
 							System.out.print("\n");
 							dataTimers.get(seqNum).cancel();
+							toRemove.add(seqNum);
 							numAcked++;
 						}
-					}
+					}	
 					
+					for (int seqNum : toRemove)
+						dataTimers.remove(seqNum);						
 					
-					for (int seqNum : dataTimers.keySet()){
-						if (seqNum <= p.ackNum)
-							dataTimers.remove(seqNum);						
-					}
 				}
 					
 				unackedPkts -= numAcked;
@@ -572,10 +571,17 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 */
 	@Override
 	public synchronized void handleTimer(Object ref) {
-
-		tcpTimer.cancel();
-		tcpTimer = null;
-
+		
+		TCPPacket packet = (TCPPacket) ref;
+		
+		if (tcpTimer != null){
+			tcpTimer.cancel();
+			tcpTimer = null;
+		}
+		
+		if (dataTimers.contains(packet.data.length + packet.seqNum))
+			dataTimers.get(packet.data.length + packet.seqNum).cancel();
+		
 		// this must run only once the last timer (30 second timer) has expired
 		if (state == State.TIME_WAIT) {
 			printTransition(state, State.CLOSED);
@@ -590,7 +596,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// received for a given packet.
 		// Resend the packet.
 		else {
-			sendPacket((TCPPacket) ref, connectedAddr);
+			sendPacket(packet, connectedAddr);
 		}
 
 	}
