@@ -203,6 +203,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 */
 	public synchronized void receivePacket(TCPPacket p) {
 
+		System.out.println("In recieve packet");
 		TCPPacket response;
 		recvWindow = p.windowSize;
 		switch (state) {
@@ -436,6 +437,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 		}
 
+		System.out.println("out of recieve packet");
 		this.notifyAll(); // Wake up any threads that may be waiting on a
 							// particular state transition.
 
