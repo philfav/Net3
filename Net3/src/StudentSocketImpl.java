@@ -131,7 +131,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 				e.printStackTrace();
 			}
 		}
-		System.out.println(new String(buffer));
 		sendBuffer.append(buffer,0, length);
 		sendData();
 	}
@@ -279,6 +278,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 					for (int seqNum : dataTimers.keySet()){
 						if (seqNum <= p.ackNum){
+							System.out.print("Cancelling timer for");
+							System.out.print(seqNum);
+							System.out.print("\n");
 							dataTimers.get(seqNum).cancel();
 							dataTimers.remove(seqNum);
 							numAcked++;
