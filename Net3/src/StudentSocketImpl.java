@@ -23,6 +23,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	private int connectedPort; // Port number of other side of TCP connection
 	private int connectedSeq; // Current sequence number of other side of TCP
 								// connection
+	private int connectedAck;
 	private TCPPacket lastPack; // The last non-ack packet sent (saved in case
 								// it is dropped)
 	private TCPPacket lastAck; // The last ack packet sent (saved in case it is
@@ -41,8 +42,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 	private BetterBuffer sendBuffer;
 	private BetterBuffer recvBuffer;
-	
-	private Hashtable dataTimers;
+	private int unackedPkts;
+	private int recvWindow;
+	private Hashtable<Integer, Timer> dataTimers;
 
 	// Used to print state transitions. The string representation of the state
 	// is at the index corresponding to it's partner's ordinal in the State enum
@@ -52,7 +54,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 	StudentSocketImpl(Demultiplexer D) { // default constructor
 		this.D = D;
 		state = State.CLOSED; // Init to closed
-		dataTimers = new Hashtable<TCPPacket,Timer>();
+		dataTimers = new Hashtable<Integer,Timer>();
+		unackedPkts = 0;
 		
 		try {
 			pipeAppToSocket = new PipedInputStream();
@@ -95,7 +98,19 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 * @return number of bytes copied (by definition > 0)
 	 */
 	synchronized int getData(byte[] buffer, int length) {
-		return 2;
+		while (recvBuffer.getUsedSpace() == 0){
+			try {
+				wait();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		int readLen = Math.min(length, recvBuffer.getUsedSpace());
+		recvBuffer.read(buffer, readLen);
+		notifyAll();
+		return readLen;
 	}
 
 	/**
@@ -108,7 +123,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 *            number of bytes to copy
 	 */
 	synchronized void dataFromApp(byte[] buffer, int length) {
-		while (sendBuffer.getSpace() <= 0){
+		while (sendBuffer.getFreeSpace() == 0){
 			try {
 				wait();
 			} catch (InterruptedException e) {
@@ -122,6 +137,22 @@ class StudentSocketImpl extends BaseSocketImpl {
 	}
 
 	synchronized void sendData(){
+		int sentSpace = recvWindow > 0 ? 0 : -1;
+		
+		while (unackedPkts < 8 && sendBuffer.getUsedSpace() > 0 && sentSpace < recvWindow){
+			int dataSize = Math.min(Math.min(recvWindow - sentSpace,sendBuffer.getUsedSpace()), 1000);
+			
+			byte [] data =  new byte[dataSize];
+			sendBuffer.read(data, dataSize);
+			TCPPacket dataPack = new TCPPacket(this.localport, connectedPort, seq,connectedAck , false, false, false, recvBuffer.getFreeSpace(), data);
+			
+			sentSpace += dataSize;
+			seq += dataSize;
+			unackedPkts ++;
+			sendPacket(dataPack, connectedAddr);
+			
+		}
+		notifyAll();
 		
 	}
 	
@@ -143,11 +174,12 @@ class StudentSocketImpl extends BaseSocketImpl {
 		connectedAddr = address;
 
 		D.registerConnection(address, this.localport, port, this);
-		TCPPacket syn = new TCPPacket(this.localport, port, seq, 28, false, true, false, 5, null);
+		TCPPacket syn = new TCPPacket(this.localport, port, seq, 28, false, true, false, recvBuffer.getFreeSpace(), null);
 
 		sendPacket(syn, connectedAddr); // Send syn packet to initiate three-way
 										// handshake
 
+		seq += 20;
 		printTransition(State.CLOSED, State.SYN_SENT); // After sending syn,
 														// state transition
 
@@ -172,7 +204,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	public synchronized void receivePacket(TCPPacket p) {
 
 		TCPPacket response;
-
+		recvWindow = p.windowSize;
 		switch (state) {
 		case LISTEN:
 			if (!p.synFlag || p.ackFlag) // Garbage packet
@@ -182,12 +214,12 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			// Init values
 			seq = p.ackNum;
-			connectedSeq = p.seqNum;
+			connectedAck= p.seqNum + 20;
 			connectedAddr = p.sourceAddr;
 
-			response = new TCPPacket(localport, p.sourcePort, seq, connectedSeq + 20, true, true, false, 5, null); // SYN+ACK
+			response = new TCPPacket(localport, p.sourcePort, seq, connectedAck, true, true, false, recvBuffer.getFreeSpace(), null); // SYN+ACK
 																													// in
-																													// response
+			seq += 20;																										// response
 																													// to
 																													// SYN
 
@@ -212,12 +244,49 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			else if (p.finFlag) {
 				seq = p.ackNum; // Update seq on FIN and SYN
-				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // ACK
+				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, recvBuffer.getFreeSpace(), null); // ACK
 																														// for
 																														// fin
 				sendPacket(response, connectedAddr);
 
 				printTransition(state, State.CLOSE_WAIT);
+			}
+			
+			else if (p.data != null){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{
+					if (recvBuffer.getFreeSpace() < p.data.length)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						recvBuffer.append(p.data, 0, p.data.length);
+						connectedAck += p.data.length;
+
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				
+			}
+			
+			else if (p.ackFlag){
+				int numAcked = 0;
+				
+				if (dataTimers.contains(p.ackNum)){
+					
+					for (int seqNum : dataTimers.keySet()){
+						if (seqNum <= p.ackNum){
+							dataTimers.get(seqNum).cancel();
+							dataTimers.remove(seqNum);
+							numAcked++;
+						}
+					}
+				}
+					
+				unackedPkts -= numAcked;
+				
 			}
 
 			break;
@@ -240,7 +309,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 				seq = p.ackNum;
 				connectedSeq = p.seqNum;
 
-				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
+				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, recvBuffer.getFreeSpace(), null); // Ack
 																														// for
 																														// fin
 
@@ -259,7 +328,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			seq = p.ackNum;
 
-			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
+			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, recvBuffer.getFreeSpace(), null); // Ack
 																													// for
 																													// fin
 
@@ -267,7 +336,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 			printTransition(state, State.TIME_WAIT);
 
-			createTimerTask(30 * 1000, null); // TIME_WAIT 30 second timer
+			createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
 
 			break;
 
@@ -281,7 +350,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 				tcpTimer = null;
 
 				printTransition(state, State.TIME_WAIT);
-				createTimerTask(30 * 1000, null); // TIME_WAIT 30 second timer
+				createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
 			}
 
 			break;
@@ -313,13 +382,12 @@ class StudentSocketImpl extends BaseSocketImpl {
 			tcpTimer.cancel(); // Cancel timer for sent SYN
 			tcpTimer = null;
 
-			seq = p.ackNum;
 			connectedSeq = p.seqNum;
-
-			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, 5, null); // Ack
+			connectedAck = connectedSeq + 20;
+			response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null); // Ack
 																												// for
 																												// received
-																												// SYN+ACK
+			seq += 20;																									// SYN+ACK
 
 			sendPacket(response, connectedAddr);
 
@@ -340,7 +408,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 				printTransition(state, State.TIME_WAIT);
 
-				createTimerTask(30 * 1000, null); // 30 second TIME_WAIT timer
+				createTimerTask(null, 30 * 1000, null); // 30 second TIME_WAIT timer
 			}
 
 			break;
@@ -440,7 +508,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		if (connectedAddr == null)
 			return;
 
-		TCPPacket fin = new TCPPacket(this.localport, this.connectedPort, seq, connectedSeq + 1, false, false, true, 5,
+		TCPPacket fin = new TCPPacket(this.localport, this.connectedPort, seq, connectedSeq + 1, false, false, true, recvBuffer.getFreeSpace(),
 				null);
 
 		sendPacket(fin, connectedAddr);
@@ -480,10 +548,13 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 * @param ref
 	 *            generic reference to be returned to handleTimer
 	 */
-	private TCPTimerTask createTimerTask(long delay, Object ref) {
-		if (tcpTimer == null)
+	private TCPTimerTask createTimerTask(Timer timer, long delay, Object ref) {
+		if (tcpTimer == null || timer == null){
 			tcpTimer = new Timer(false);
-		return new TCPTimerTask(tcpTimer, delay, this, ref);
+			timer = tcpTimer;
+		}
+			
+		return new TCPTimerTask(timer, delay, this, ref);
 	}
 
 	/**
@@ -510,7 +581,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			}
 		}
 		// If a timer expires in any other state, indicates that an ack was not
-		// transmitted for a given packet.
+		// received for a given packet.
 		// Resend the packet.
 		else {
 			sendPacket((TCPPacket) ref, connectedAddr);
@@ -544,7 +615,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 		TCPWrapper.send(pack, addr); // Actually send the packet
 
 		if (pack.getData() != null){
-			
+			Timer dataTimer = new Timer(false);
+			createTimerTask(dataTimer, 1000, pack);
+			dataTimers.put(pack.seqNum + pack.data.length, dataTimer);
 		}
 		
 		// For FINs, ACKs, and SYN+ACKs, send the packet and start a
@@ -552,7 +625,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// Also, save it as the lastPack sent.
 		else if (!pack.ackFlag || pack.synFlag) {
 			lastPack = pack;
-			createTimerTask(1000, pack);
+			createTimerTask(null, 1000, pack);
 		}
 
 		// For ACKs, no retransmission. Save the packet as the lastAck sent.

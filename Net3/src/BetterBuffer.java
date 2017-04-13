@@ -43,7 +43,11 @@ public class BetterBuffer {
 		buf.advance(len);
 	}
 	
-	public synchronized int getSpace(){
+	public synchronized int getFreeSpace(){
 		return remSpace;
+	}
+	
+	public synchronized int getUsedSpace(){
+		return size - remSpace;
 	}
 }
