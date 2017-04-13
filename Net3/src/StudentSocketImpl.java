@@ -387,9 +387,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 			connectedAck = connectedSeq + 20;
 			response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null); // Ack
 																												// for
-																												// received
-			seq += 20;																									// SYN+ACK
-
 			sendPacket(response, connectedAddr);
 
 			connectedPort = p.sourcePort;
