@@ -278,13 +278,19 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 					for (int seqNum : dataTimers.keySet()){
 						if (seqNum <= p.ackNum){
-							/*System.out.print("Cancelling timer for");
+							System.out.print("Cancelling timer for");
 							System.out.print(seqNum);
-							System.out.print("\n");*/
+							System.out.print("\n");
 							dataTimers.get(seqNum).cancel();
 							dataTimers.remove(seqNum);
 							numAcked++;
 						}
+					}
+					
+					
+					for (int seqNum : dataTimers.keySet()){
+						if (seqNum <= p.ackNum)
+							dataTimers.remove(seqNum);						
 					}
 				}
 					
