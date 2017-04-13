@@ -148,6 +148,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 			sentSpace += dataSize;
 			seq += dataSize;
 			unackedPkts ++;
+			String contents = new String(data);
+			System.out.println(contents.replace("\n", ""));
 			sendPacket(dataPack, connectedAddr);
 			
 		}
