@@ -591,7 +591,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 		TCPPacket fin = new TCPPacket(this.localport, this.connectedPort, seq, connectedAck, false, false, true, recvBuffer.getFreeSpace(),
 				null);
-
+		
+		seq += 20;
 		sendPacket(fin, connectedAddr);
 
 		// Two possible states in which a close() can be called
@@ -695,7 +696,11 @@ class StudentSocketImpl extends BaseSocketImpl {
 		if (pack.getData() != null || pack.finFlag){
 			Timer dataTimer = new Timer(false);
 			createTimerTask(dataTimer, 1000, pack);
-			dataTimers.put(pack.seqNum + pack.data.length, dataTimer);
+			
+			if (pack.finFlag)
+				dataTimers.put(pack.seqNum + 20, dataTimer);
+			else
+				dataTimers.put(pack.seqNum + pack.data.length, dataTimer);
 		}
 		
 		// For FINs, ACKs, and SYN+ACKs, send the packet and start a
