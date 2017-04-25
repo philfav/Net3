@@ -257,13 +257,14 @@ class StudentSocketImpl extends BaseSocketImpl {
 					if (p.finFlag)
 						printTransition(state, State.CLOSE_WAIT);
 					
-					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
+					if ( !p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
 						System.out.println("Packet dropped, no space in buffer");
 					
 					else{
-						recvBuffer.append(p.data, 0, p.data.length);
-						connectedAck += p.data.length;
-
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
@@ -312,13 +313,14 @@ class StudentSocketImpl extends BaseSocketImpl {
 					if (p.finFlag)
 						printTransition(state, State.CLOSING);
 					
-					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
+					if (!p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
 						System.out.println("Packet dropped, no space in buffer");
 					
 					else{
-						recvBuffer.append(p.data, 0, p.data.length);
-						connectedAck += p.data.length;
-
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
@@ -392,13 +394,15 @@ class StudentSocketImpl extends BaseSocketImpl {
 						createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
 					}
 					
-					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
+					if (!p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
 						System.out.println("Packet dropped, no space in buffer");
 					
 					else{
-						recvBuffer.append(p.data, 0, p.data.length);
-						connectedAck += p.data.length;
-
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
+						
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
