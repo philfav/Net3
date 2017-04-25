@@ -24,6 +24,8 @@ public class CloseThread extends Thread {
 			}
 		}
 		
+		sock.notifyAll();
+		
 		Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
 		
 		Thread[] threadArray = threadSet.toArray(new Thread[threadSet.size()]);
