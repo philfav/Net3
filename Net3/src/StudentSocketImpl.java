@@ -154,7 +154,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 			seq += dataSize;
 			unackedPkts ++;
 			String contents = new String(data);
-			System.out.println(contents.replace("\n", ""));
+			//System.out.println(contents.replace("\n", ""));
 			sendPacket(dataPack, connectedAddr);
 			
 		}
@@ -209,7 +209,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 */
 	public synchronized void receivePacket(TCPPacket p) {
 
-		System.out.println("In recieve packet");
+		//System.out.println("In recieve packet");
 		TCPPacket response;
 		recvWindow = p.windowSize;
 		switch (state) {
@@ -265,6 +265,10 @@ class StudentSocketImpl extends BaseSocketImpl {
 							recvBuffer.append(p.data, 0, p.data.length);
 							connectedAck += p.data.length;
 						}
+						
+						else
+							connectedAck += 20;
+						
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
@@ -279,9 +283,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 					for (int seqNum : dataTimers.keySet()){
 						if (seqNum <= p.ackNum){
-							System.out.print("Cancelling timer for");
+							/*System.out.print("Cancelling timer for");
 							System.out.print(seqNum);
-							System.out.print("\n");
+							System.out.print("\n");*/
 							dataTimers.get(seqNum).cancel();
 							toRemove.add(seqNum);
 							numAcked++;
@@ -321,6 +325,10 @@ class StudentSocketImpl extends BaseSocketImpl {
 							recvBuffer.append(p.data, 0, p.data.length);
 							connectedAck += p.data.length;
 						}
+						
+						else
+							connectedAck += 20;
+						
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
@@ -335,9 +343,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 					for (int seqNum : dataTimers.keySet()){
 						if (seqNum <= p.ackNum){
-							System.out.print("Cancelling timer for");
+							/*System.out.print("Cancelling timer for");
 							System.out.print(seqNum);
-							System.out.print("\n");
+							System.out.print("\n");*/
 							dataTimers.get(seqNum).cancel();
 							toRemove.add(seqNum);
 							numAcked++;
@@ -358,12 +366,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 				sendData();
 			}
 
-			// Ack for fin
-			else if (p.ackFlag) {
-				printTransition(state, State.FIN_WAIT_2);
-				tcpTimer.cancel(); // Cancel timer for the fin being acked
-				tcpTimer = null;
-			}
 
 			// Transition to CLOSING state, received fin before ack
 			else if (p.finFlag) {
@@ -403,6 +405,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 							connectedAck += p.data.length;
 						}
 						
+						else
+							connectedAck += 20;
+						
 						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
 						sendPacket(response, connectedAddr);
 					}
@@ -419,9 +424,31 @@ class StudentSocketImpl extends BaseSocketImpl {
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
 
-			if (p.ackFlag) {
-				tcpTimer.cancel(); // Cancel timer for previously sent fin
-				tcpTimer = null;
+			else if (p.ackFlag){
+				int numAcked = 0;
+				Vector<Integer> toRemove = new Vector<Integer>();
+				if (dataTimers.containsKey(p.ackNum)){
+					
+					for (int seqNum : dataTimers.keySet()){
+						if (seqNum <= p.ackNum){
+							/*System.out.print("Cancelling timer for");
+							System.out.print(seqNum);
+							System.out.print("\n");*/
+							dataTimers.get(seqNum).cancel();
+							toRemove.add(seqNum);
+							numAcked++;
+						}
+					}	
+					
+					for (int seqNum : toRemove)
+						dataTimers.remove(seqNum);						
+					
+				}
+					
+				unackedPkts -= numAcked;
+				
+				if (p.ackNum == seq) //Must be for fin, last packet sent
+					printTransition(state, State.FIN_WAIT_2);
 
 				printTransition(state, State.TIME_WAIT);
 				createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
@@ -473,9 +500,31 @@ class StudentSocketImpl extends BaseSocketImpl {
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
 
-			else if (p.ackFlag) {
-				tcpTimer.cancel(); // Cancel timer for sent fin
-				tcpTimer = null;
+			else if (p.ackFlag){
+				int numAcked = 0;
+				Vector<Integer> toRemove = new Vector<Integer>();
+				if (dataTimers.containsKey(p.ackNum)){
+					
+					for (int seqNum : dataTimers.keySet()){
+						if (seqNum <= p.ackNum){
+							/*System.out.print("Cancelling timer for");
+							System.out.print(seqNum);
+							System.out.print("\n");*/
+							dataTimers.get(seqNum).cancel();
+							toRemove.add(seqNum);
+							numAcked++;
+						}
+					}	
+					
+					for (int seqNum : toRemove)
+						dataTimers.remove(seqNum);						
+					
+				}
+					
+				unackedPkts -= numAcked;
+				
+				if (p.ackNum == seq) //Must be for fin, last packet sent
+					printTransition(state, State.FIN_WAIT_2);
 
 				printTransition(state, State.TIME_WAIT);
 
@@ -507,7 +556,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 
 		}
 
-		System.out.println("out of recieve packet");
+		//System.out.println("out of recieve packet");
 		this.notifyAll(); // Wake up any threads that may be waiting on a
 							// particular state transition.
 
