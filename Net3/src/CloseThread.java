@@ -1,3 +1,4 @@
+import java.util.Arrays;
 import java.util.Set;
 
 public class CloseThread extends Thread {
@@ -26,6 +27,6 @@ public class CloseThread extends Thread {
 		Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
 		
 		Thread[] threadArray = threadSet.toArray(new Thread[threadSet.size()]);
-		System.out.println(threadArray);
+		System.out.println(Arrays.deepToString(threadArray));
 	}
 }
