@@ -689,6 +689,10 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 */
 	@Override
 	public synchronized void handleTimer(Object ref) {
+		if (tcpTimer != null){
+			tcpTimer.cancel();
+			tcpTimer = null;
+		}
 		
 		// this must run only once the last timer (30 second timer) has expired
 		if (state == State.TIME_WAIT) {
@@ -705,10 +709,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		
 		TCPPacket packet = (TCPPacket) ref;
 		
-		if (tcpTimer != null){
-			tcpTimer.cancel();
-			tcpTimer = null;
-		}
+
 		
 		if (packet.getData() != null)
 			dataTimers.get(packet.data.length + packet.seqNum).cancel();
