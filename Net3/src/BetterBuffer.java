@@ -37,6 +37,9 @@ public class BetterBuffer {
 			System.out.println("Reading data that has not yet been written! Aborting read");
 		}
 		
+		if (len == 0)
+			return;
+		
 		remSpace += len;
 		
 		buf.copyOut(data, buf.getBase(), len);

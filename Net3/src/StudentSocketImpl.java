@@ -39,7 +39,8 @@ class StudentSocketImpl extends BaseSocketImpl {
 	private SocketWriter writer;
 
 	private boolean terminating = false;
-
+	private boolean dataTransferred = false;
+	
 	private BetterBuffer sendBuffer;
 	private BetterBuffer recvBuffer;
 	private int unackedPkts;
@@ -98,7 +99,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 * @return number of bytes copied (by definition > 0)
 	 */
 	synchronized int getData(byte[] buffer, int length) {
-		while (recvBuffer.getUsedSpace() == 0){
+		while (recvBuffer.getUsedSpace() == 0 ){
 			try {
 				wait();
 			} catch (InterruptedException e) {
@@ -131,7 +132,11 @@ class StudentSocketImpl extends BaseSocketImpl {
 				e.printStackTrace();
 			}
 		}
+		
 		sendBuffer.append(buffer,0, length);
+		if (terminating)
+			dataTransferred = true;
+		
 		sendData();
 	}
 
@@ -243,23 +248,16 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// it
 			if (p.ackFlag && p.synFlag)
 				sendPacket(lastAck, connectedAddr);
-
-			else if (p.finFlag) {
-				seq = p.ackNum; // Update seq on FIN and SYN
-				response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, recvBuffer.getFreeSpace(), null); // ACK
-																														// for
-																														// fin
-				sendPacket(response, connectedAddr);
-
-				printTransition(state, State.CLOSE_WAIT);
-			}
 			
-			else if (p.data != null){
+			else if (p.data != null || p.finFlag){
 				if (p.seqNum != connectedAck)
 					sendPacket(lastAck, connectedAddr);
 				
 				else{
-					if (recvBuffer.getFreeSpace() < p.data.length)
+					if (p.finFlag)
+						printTransition(state, State.CLOSE_WAIT);
+					
+					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
 						System.out.println("Packet dropped, no space in buffer");
 					
 					else{
@@ -270,7 +268,62 @@ class StudentSocketImpl extends BaseSocketImpl {
 						sendPacket(response, connectedAddr);
 					}
 				}
+				sendData();
+			}
+			
+			else if (p.ackFlag){
+				int numAcked = 0;
+				Vector<Integer> toRemove = new Vector<Integer>();
+				if (dataTimers.containsKey(p.ackNum)){
+					
+					for (int seqNum : dataTimers.keySet()){
+						if (seqNum <= p.ackNum){
+							System.out.print("Cancelling timer for");
+							System.out.print(seqNum);
+							System.out.print("\n");
+							dataTimers.get(seqNum).cancel();
+							toRemove.add(seqNum);
+							numAcked++;
+						}
+					}	
+					
+					for (int seqNum : toRemove)
+						dataTimers.remove(seqNum);						
+					
+				}
+					
+				unackedPkts -= numAcked;
+				sendData();
+			}
+
+			break;
+
+		case FIN_WAIT_1:
+			// Receiving a SYN+ACK in this state indicates a dropped ack,
+			// followed by a close(). Resend the ack
+			if (p.ackFlag && p.synFlag)
+				sendPacket(lastAck, connectedAddr);
+
+			else if (p.data != null || p.finFlag){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
 				
+				else{
+					if (p.finFlag)
+						printTransition(state, State.CLOSING);
+					
+					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						recvBuffer.append(p.data, 0, p.data.length);
+						connectedAck += p.data.length;
+
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
 			}
 			
 			else if (p.ackFlag){
@@ -296,15 +349,12 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 				unackedPkts -= numAcked;
 				
+				if (p.ackNum == seq) //Must be for fin, last packet sent
+					printTransition(state, State.FIN_WAIT_2);
+				
+				
+				sendData();
 			}
-
-			break;
-
-		case FIN_WAIT_1:
-			// Receiving a SYN+ACK in this state indicates a dropped ack,
-			// followed by a close(). Resend the ack
-			if (p.ackFlag && p.synFlag)
-				sendPacket(lastAck, connectedAddr);
 
 			// Ack for fin
 			else if (p.ackFlag) {
@@ -330,22 +380,33 @@ class StudentSocketImpl extends BaseSocketImpl {
 			break;
 
 		case FIN_WAIT_2:
-			if (!p.finFlag) // Garbage packet
-				break;
+			
+			if (p.data != null || p.finFlag){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{
+					if (p.finFlag){
+						printTransition(state, State.TIME_WAIT);
 
-			// FIN received
+						createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
+					}
+					
+					if (recvBuffer.getFreeSpace() < p.data.length && !p.finFlag)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						recvBuffer.append(p.data, 0, p.data.length);
+						connectedAck += p.data.length;
 
-			seq = p.ackNum;
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
+			}
 
-			response = new TCPPacket(localport, p.sourcePort, -2, connectedSeq + 20, true, false, false, recvBuffer.getFreeSpace(), null); // Ack
-																													// for
-																													// fin
 
-			sendPacket(response, connectedAddr);
-
-			printTransition(state, State.TIME_WAIT);
-
-			createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
 
 			break;
 
@@ -515,7 +576,20 @@ class StudentSocketImpl extends BaseSocketImpl {
 		if (connectedAddr == null)
 			return;
 
-		TCPPacket fin = new TCPPacket(this.localport, this.connectedPort, seq, connectedSeq + 1, false, false, true, recvBuffer.getFreeSpace(),
+		terminating = true;
+		
+		while (!reader.tryClose() && sendBuffer.getUsedSpace() != 0 && !dataTransferred) {
+			notifyAll();
+			try {
+				wait(1000);
+			} catch (InterruptedException e) {
+			}
+		}
+		writer.close();
+
+		notifyAll();
+
+		TCPPacket fin = new TCPPacket(this.localport, this.connectedPort, seq, connectedAck, false, false, true, recvBuffer.getFreeSpace(),
 				null);
 
 		sendPacket(fin, connectedAddr);
@@ -527,19 +601,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 		else if (state == State.CLOSE_WAIT)
 			printTransition(state, State.LAST_ACK);
 
-		terminating = true;
+		
 
-		while (!reader.tryClose()) {
-			notifyAll();
-			try {
-				wait(1000);
-			} catch (InterruptedException e) {
-			}
-		}
-		writer.close();
-
-		notifyAll();
-
+	
 		// Starts a new thread that will wait until the connection is fully
 		// closed.
 		// Allows the application to return immediately from close()
@@ -628,7 +692,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	private void sendPacket(TCPPacket pack, InetAddress addr) {
 		TCPWrapper.send(pack, addr); // Actually send the packet
 
-		if (pack.getData() != null){
+		if (pack.getData() != null || pack.finFlag){
 			Timer dataTimer = new Timer(false);
 			createTimerTask(dataTimer, 1000, pack);
 			dataTimers.put(pack.seqNum + pack.data.length, dataTimer);
