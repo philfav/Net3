@@ -692,6 +692,19 @@ class StudentSocketImpl extends BaseSocketImpl {
 	@Override
 	public synchronized void handleTimer(Object ref) {
 		
+		// this must run only once the last timer (30 second timer) has expired
+		if (state == State.TIME_WAIT) {
+			printTransition(state, State.CLOSED);
+			notifyAll();
+			try {
+				D.unregisterConnection(connectedAddr, localport, connectedPort, this);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			return;
+		}
+		
 		TCPPacket packet = (TCPPacket) ref;
 		
 		if (tcpTimer != null){
@@ -702,16 +715,9 @@ class StudentSocketImpl extends BaseSocketImpl {
 		if (packet.getData() != null)
 			dataTimers.get(packet.data.length + packet.seqNum).cancel();
 		
-		// this must run only once the last timer (30 second timer) has expired
-		if (state == State.TIME_WAIT) {
-			printTransition(state, State.CLOSED);
-			notifyAll();
-			try {
-				D.unregisterConnection(connectedAddr, localport, connectedPort, this);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+		if (packet.finFlag)
+			dataTimers.get(packet.seqNum + 20).cancel();
+
 		// If a timer expires in any other state, indicates that an ack was not
 		// received for a given packet.
 		// Resend the packet.
