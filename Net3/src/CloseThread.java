@@ -1,3 +1,4 @@
+import java.util.Set;
 
 public class CloseThread extends Thread {
 	private StudentSocketImpl sock;
@@ -21,5 +22,10 @@ public class CloseThread extends Thread {
 				}
 			}
 		}
+		
+		Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+		
+		Thread[] threadArray = threadSet.toArray(new Thread[threadSet.size()]);
+		System.out.println(threadArray);
 	}
 }

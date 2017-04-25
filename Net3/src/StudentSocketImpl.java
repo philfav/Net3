@@ -447,8 +447,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 					
 				unackedPkts -= numAcked;
 				
-				if (p.ackNum == seq) //Must be for fin, last packet sent
-					printTransition(state, State.FIN_WAIT_2);
 
 				printTransition(state, State.TIME_WAIT);
 				createTimerTask(null, 30 * 1000, null); // TIME_WAIT 30 second timer
