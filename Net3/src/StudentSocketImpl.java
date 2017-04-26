@@ -423,7 +423,32 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// A FIN in this state indicates a dropped ack. Resend it.
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
-
+			
+			else if (p.data != null){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{
+					
+					if (!p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
+						
+						else
+							connectedAck += 20;
+						
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
+			}
+			
 			else if (p.ackFlag){
 				int numAcked = 0;
 				Vector<Integer> toRemove = new Vector<Integer>();
@@ -497,7 +522,32 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// Receiving a FIN in this state indicates a dropped ack. Resend it.
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
-
+			
+			else if (p.data != null ){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{
+					
+					if (recvBuffer.getFreeSpace() < p.data.length)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
+						
+						else
+							connectedAck += 20;
+						
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
+			}
+			
 			else if (p.ackFlag){
 				int numAcked = 0;
 				Vector<Integer> toRemove = new Vector<Integer>();
@@ -537,7 +587,31 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// Resend the ack.
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
-
+			
+			else if (p.data != null){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{
+					
+					if (!p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
+						
+						else
+							connectedAck += 20;
+						
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
+			}
 			break;
 
 		case TIME_WAIT:
@@ -546,7 +620,30 @@ class StudentSocketImpl extends BaseSocketImpl {
 			// Resend the ack.
 			if (p.finFlag)
 				sendPacket(lastAck, connectedAddr);
-
+			
+			else if (p.data != null){
+				if (p.seqNum != connectedAck)
+					sendPacket(lastAck, connectedAddr);
+				
+				else{		
+					if (!p.finFlag && recvBuffer.getFreeSpace() < p.data.length)
+						System.out.println("Packet dropped, no space in buffer");
+					
+					else{
+						if (!p.finFlag){
+							recvBuffer.append(p.data, 0, p.data.length);
+							connectedAck += p.data.length;
+						}
+						
+						else
+							connectedAck += 20;
+						
+						response = new TCPPacket(localport, p.sourcePort, -2, connectedAck, true, false, false, recvBuffer.getFreeSpace(), null);
+						sendPacket(response, connectedAddr);
+					}
+				}
+				sendData();
+			}
 			break;
 
 		default:
