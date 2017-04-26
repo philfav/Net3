@@ -752,6 +752,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 		TCPWrapper.send(pack, addr); // Actually send the packet
 
 		if (pack.getData() != null || pack.finFlag){
+			System.out.println("Packet given timer for data/fin");
 			Timer dataTimer = new Timer(false);
 			createTimerTask(dataTimer, 1000, pack);
 			
