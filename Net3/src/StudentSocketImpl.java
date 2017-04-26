@@ -713,14 +713,16 @@ class StudentSocketImpl extends BaseSocketImpl {
 		// received for a given packet.
 		// Resend the packet.
 		else {
+			
+			if (packet.getData() != null)
+				dataTimers.get(packet.data.length + packet.seqNum).cancel();
+			
+			if (packet.finFlag)
+				dataTimers.get(packet.seqNum + 20).cancel();
+			
 			sendPacket(packet, connectedAddr);
 		}
-		
-		if (packet.getData() != null)
-			dataTimers.get(packet.data.length + packet.seqNum).cancel();
-		
-		if (packet.finFlag)
-			dataTimers.get(packet.seqNum + 20).cancel();
+
 
 	
 
