@@ -6,7 +6,7 @@ public class BetterBuffer {
 	int remSpace;
 	
 	public BetterBuffer(){
-		buf = new InfiniteBuffer(1000);
+		buf = new InfiniteBuffer();
 		size = remSpace = buf.getBufferSize();
 	}
 	
