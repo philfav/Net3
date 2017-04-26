@@ -689,6 +689,7 @@ class StudentSocketImpl extends BaseSocketImpl {
 	 */
 	@Override
 	public synchronized void handleTimer(Object ref) {
+		System.out.println("Timer went off");
 		if (tcpTimer != null){
 			tcpTimer.cancel();
 			tcpTimer = null;
@@ -714,10 +715,6 @@ class StudentSocketImpl extends BaseSocketImpl {
 		else {
 			sendPacket(packet, connectedAddr);
 		}
-		
-		
-		
-
 		
 		if (packet.getData() != null)
 			dataTimers.get(packet.data.length + packet.seqNum).cancel();
